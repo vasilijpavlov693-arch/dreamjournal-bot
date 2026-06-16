@@ -9,7 +9,6 @@ from aiogram.types import Message
 from fastapi import FastAPI
 import uvicorn
 from groq import Groq
-import google.generativeai as genai
 
 # --- Настройка логирования ---
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -38,11 +37,6 @@ dp = Dispatcher()
 logger.info("✅ Бот инициализирован")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
-
-# Настройка Gemini
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-2.0-flash')
-
 
 # --- Команда /start ---
 @dp.message(Command("start"))
@@ -94,6 +88,9 @@ async def handle_voice(message: types.Message):
         await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Gemini...")
 
         # 4. Обработка текста через Gemini
+        await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Groq...")
+
+        # Формируем запрос к Groq LLM
         prompt = (
             "Ты — писатель и поэт. Преврати следующий сырой пересказ сна в красивый, "
             "поэтичный и образный рассказ на русском языке. Добавь атмосферу, метафоры "
@@ -101,12 +98,22 @@ async def handle_voice(message: types.Message):
             f"Сон пользователя:\n{raw_text}"
         )
 
-        gemini_response = gemini_model.generate_content(prompt)
-        polished_dream = gemini_response.text
+        # Отправляем запрос в Groq (используем самую лучшую и бесплатную модель)
+        llm_response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",  # Отличная модель для русского языка
+            messages=[
+                {"role": "system", "content": "Ты — писатель и поэт, пишешь на русском языке."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.8,
+            max_tokens=1024
+        )
+
+        # Извлекаем обработанный текст
+        polished_dream = llm_response.choices[0].message.content
 
         if not polished_dream:
-            polished_dream = raw_text
-
+            polished_dream = raw_text  # Если Groq не ответил, отдаём сырой текст
         # 5. Отправляем результат
         await processing_msg.delete()
 
