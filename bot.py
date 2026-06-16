@@ -3,12 +3,12 @@ import sys
 import logging
 import asyncio
 import threading
-import replicate
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message
 from fastapi import FastAPI
 import uvicorn
+from groq import Groq  # <-- Новая библиотека
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -22,9 +22,9 @@ if not BOT_TOKEN:
     logger.error("❌ ОШИБКА: BOT_TOKEN не найден!")
     sys.exit(1)
 
-REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
-if not REPLICATE_API_TOKEN:
-    logger.error("❌ ОШИБКА: REPLICATE_API_TOKEN не найден!")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    logger.error("❌ ОШИБКА: GROQ_API_KEY не найден! Получите бесплатный ключ на console.groq.com")
     sys.exit(1)
 
 # --- Инициализация бота ---
@@ -32,8 +32,8 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 logger.info("✅ Бот инициализирован")
 
-# --- Инициализация клиента Replicate ---
-replicate_client = replicate.Client(api_token=REPLICATE_API_TOKEN)
+# --- Инициализация клиента Groq ---
+groq_client = Groq(api_key=GROQ_API_KEY)
 
 # --- Команда /start ---
 @dp.message(Command("start"))
@@ -41,10 +41,11 @@ async def start_command(message: Message):
     user_name = message.from_user.first_name
     await message.answer(
         f"Привет, {user_name}! 🎙️\n\n"
-        "Отправь голосовое сообщение, и я расшифрую его через Replicate Whisper."
+        "Отправь голосовое сообщение, и я расшифрую его через Groq Whisper (бесплатно!)."
     )
     logger.info(f"Пользователь {message.from_user.id} запустил бота")
 
+# --- Обработчик голосовых сообщений (Groq) ---
 @dp.message(lambda message: message.voice)
 async def handle_voice(message: types.Message):
     await bot.send_chat_action(message.chat.id, action="typing")
@@ -58,28 +59,19 @@ async def handle_voice(message: types.Message):
         temp_audio_path = f"voice_{message.from_user.id}_{message.message_id}.ogg"
         await bot.download_file(file.file_path, temp_audio_path)
         
-        await processing_msg.edit_text("📤 Отправляю аудио в Replicate API...")
+        await processing_msg.edit_text("📤 Отправляю аудио в Groq API...")
         
-        # 2. Отправляем в Replicate (через файловый объект)
+        # 2. Отправляем в Groq Whisper (бесплатно!)
         with open(temp_audio_path, "rb") as audio_file:
-            output = replicate_client.run(
-                "openai/whisper:34a6b005f74bb8a172a129b03bebef1325dacceacfe092a54cfdff8758ddab4c",
-                input={
-                    "audio": audio_file,
-                    "model": "large-v3",
-                    "language": "ru",
-                    "task": "transcribe",
-                    "temperature": 0
-                }
+            transcription = groq_client.audio.transcriptions.create(
+                file=audio_file,
+                model="whisper-large-v3",  # Бесплатная модель
+                language="ru",
+                response_format="text"
             )
         
         # 3. Извлекаем текст
-        if isinstance(output, dict):
-            transcribed_text = output.get("text", "")
-        elif isinstance(output, str):
-            transcribed_text = output
-        else:
-            transcribed_text = str(output)
+        transcribed_text = transcription if isinstance(transcription, str) else transcription.text
         
         if not transcribed_text or transcribed_text.strip() == "":
             raise Exception("Whisper не вернул текст")
@@ -99,10 +91,7 @@ async def handle_voice(message: types.Message):
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
         
-        # Логируем ошибку
         logger.error(f"Ошибка распознавания: {e}")
-        
-        # Отправляем сообщение пользователю (используем e внутри except)
         await processing_msg.edit_text(
             f"❌ *Ошибка распознавания:*\n`{str(e)[:150]}`\n\n"
             f"Попробуйте:\n"
@@ -110,7 +99,6 @@ async def handle_voice(message: types.Message):
             f"• Уменьшить длительность (до 30 секунд)",
             parse_mode="Markdown"
         )
-
 
 # --- Эхо для текстовых сообщений (временная функция) ---
 @dp.message()
