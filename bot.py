@@ -19,7 +19,6 @@ logger.info("🚀 Запуск бота...")
 # --- Проверка переменных ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not BOT_TOKEN:
     logger.error("❌ ОШИБКА: BOT_TOKEN не найден!")
@@ -27,10 +26,6 @@ if not BOT_TOKEN:
 if not GROQ_API_KEY:
     logger.error("❌ ОШИБКА: GROQ_API_KEY не найден! Получите бесплатный ключ на console.groq.com")
     sys.exit(1)
-if not GEMINI_API_KEY:
-    logger.error("❌ ОШИБКА: GEMINI_API_KEY не найден! Получите бесплатный ключ на aistudio.google.com")
-    sys.exit(1)
-
 # --- Инициализация бота и клиентов ---
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -87,7 +82,7 @@ async def handle_voice(message: types.Message):
 
         await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Gemini...")
 
-        # 4. Обработка текста через Gemini
+        # 4. Обработка текста через Groq
         await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Groq...")
 
         # Формируем запрос к Groq LLM
