@@ -1,4 +1,3 @@
-```markdown
 [![Deployed on Render](https://img.shields.io/badge/Deployed%20on-Render-blueviolet?logo=render)](https://render.com)
 [![Python Version](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
 [![Aiogram](https://img.shields.io/badge/Aiogram-3.x-green?logo=telegram)](https://docs.aiogram.dev/)
