@@ -8,7 +8,9 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from fastapi import FastAPI
 import uvicorn
-from groq import Groq  # <-- Новая библиотека
+from groq import Groq  
+from openai import OpenAI
+
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -48,6 +50,30 @@ async def start_command(message: Message):
 # --- Обработчик голосовых сообщений (Groq) ---
 @dp.message(lambda message: message.voice)
 async def handle_voice(message: types.Message):
+    await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Cloudflare...")
+
+# URL вашего развернутого Worker
+WORKER_API_URL = "https://ai-worker-proxy.vasilijpavlov693.workers.dev/"
+# Пароль (PROXY_AUTH_TOKEN), который вы установили в Cloudflare
+WORKER_AUTH_TOKEN = "1q2w-#E$R"
+
+# Инициализируем клиент для работы с Worker'ом
+client = OpenAI(
+    base_url=WORKER_API_URL,
+    api_key=WORKER_AUTH_TOKEN,
+)
+
+# Отправляем запрос к прокси, который перенаправит его в Gemini
+response = client.chat.completions.create(
+    model="gemini-2.0-flash",  # или "super-brain" — зависит от настройки прокси
+    messages=[
+        {"role": "system", "content": "Ты — писатель и поэт. Преврати следующий сырой пересказ сна в красивый, поэтичный и образный рассказ на русском языке. Добавь атмосферу и метафоры. Сохрани суть сна."},
+        {"role": "user", "content": raw_text}
+    ],
+    temperature=0.7
+)
+
+polished_dream = response.choices[0].message.content
     await bot.send_chat_action(message.chat.id, action="typing")
     processing_msg = await message.answer("🎧 Слушаю ваш голосовой...")
 
