@@ -55,86 +55,61 @@ async def start_command(message: Message):
 
 # --- Обработчик голосовых сообщений ---
 @dp.message(lambda message: message.voice)
-async def handle_voice(message: Message):
-    if not REPLICATE_API_TOKEN:
-        await message.answer("❌ Распознавание голоса временно недоступно. API ключ не настроен.")
-        return
-
-    # Отправляем статус "печатает"
+async def handle_voice(message: types.Message):
     await bot.send_chat_action(message.chat.id, action="typing")
-    
-    processing_msg = await message.answer("🎧 Слушаю твой сон...")
+    processing_msg = await message.answer("🎧 Обрабатываю голосовое через Replicate...")
 
     temp_audio_path = None
-    
+
     try:
-        # 1. Скачиваем голосовое сообщение
+        # 1. Скачиваем голосовое
         file = await bot.get_file(message.voice.file_id)
         temp_audio_path = f"voice_{message.from_user.id}_{message.message_id}.ogg"
         await bot.download_file(file.file_path, temp_audio_path)
-        
-        await processing_msg.edit_text("🔄 Отправляю на распознавание...")
-        
-        # 2. Отправляем в Replicate Whisper
-        # Replicate работает с публичными URL, поэтому загружаем файл на transfer.sh
-        # (простой способ отправить файл в Replicate)
-        
-        with open(temp_audio_path, "rb") as f:
-            files = {"audio": f}
-            headers = {"Authorization": f"Token {REPLICATE_API_TOKEN}"}
-            
-            # Создаём prediction
-            response = requests.post(
-                "https://api.replicate.com/v1/predictions",
-                headers=headers,
-                json={
-                    "version": WHISPER_MODEL.split(":")[1],
-                    "input": {
-                        "audio": open(temp_audio_path, "rb"),
-                        "model": "large-v3",
-                        "language": "ru",
-                        "task": "transcribe"
-                    }
-                }
-            )
-            
-            if response.status_code != 201:
-                raise Exception(f"Replicate API error: {response.text}")
-            
-            prediction = response.json()
-            
-            # Ждём завершения
-            while prediction["status"] not in ["succeeded", "failed"]:
-                import time
-                time.sleep(1)
-                status_response = requests.get(
-                    prediction["urls"]["get"],
-                    headers=headers
-                )
-                prediction = status_response.json()
-            
-            if prediction["status"] == "failed":
-                raise Exception("Replicate failed to process audio")
-            
-            transcribed_text = prediction["output"]["text"]
-        
-        # 3. Очистка и отправка результата
-        os.remove(temp_audio_path)
+
+        await processing_msg.edit_text("📤 Отправляю аудио в Replicate API...")
+
+        # 2. Читаем файл как байты (ЭТО ВАЖНО!)
+        with open(temp_audio_path, "rb") as audio_file:
+            audio_bytes = audio_file.read()
+
+        # 3. Отправляем в Replicate
+        output = replicate_client.run(
+            WHISPER_MODEL,
+            input={
+                "audio": audio_bytes,  # Передаём байты, а не объект файла
+                "model": "large-v3",
+                "language": "ru",
+                "task": "transcribe"
+            }
+        )
+
+        # 4. Извлекаем текст
+        if isinstance(output, dict):
+            transcribed_text = output.get("text", "")
+        elif isinstance(output, str):
+            transcribed_text = output
+        else:
+            transcribed_text = str(output)
+
+        if not transcribed_text or transcribed_text.strip() == "":
+            raise Exception("Whisper не вернул текст")
+
+        # 5. Удаляем временный файл
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+
         await processing_msg.delete()
-        
         await message.answer(
-            f"📝 *Расшифровка твоего сна:*\n\n"
-            f"_{transcribed_text}_\n\n"
-            f"💡 Чтобы записать следующий сон, просто отправь голосовое сообщение.",
+            f"📝 *Расшифровка:*\n\n_{transcribed_text}_",
             parse_mode="Markdown"
         )
-        logger.info(f"Распознан голос от {message.from_user.id}: {transcribed_text[:50]}...")
-        
+
     except Exception as e:
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
-        
-        logger.error(f"Ошибка распознавания: {e}")
+
+        logger.error(f"Ошибка: {e}")
         await processing_msg.edit_text(
             f"❌ *Ошибка распознавания:*\n{str(e)[:200]}\n\n"
             f"Попробуй:\n"
