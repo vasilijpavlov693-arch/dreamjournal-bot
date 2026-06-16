@@ -45,7 +45,6 @@ async def start_command(message: Message):
     )
     logger.info(f"Пользователь {message.from_user.id} запустил бота")
 
-# --- Обработчик голосовых сообщений ---
 @dp.message(lambda message: message.voice)
 async def handle_voice(message: types.Message):
     await bot.send_chat_action(message.chat.id, action="typing")
@@ -64,15 +63,16 @@ async def handle_voice(message: types.Message):
         # 2. Отправляем в Replicate (через файловый объект)
         with open(temp_audio_path, "rb") as audio_file:
             output = replicate_client.run(
-        "openai/whisper:34a6b005f74bb8a172a129b03bebef1325dacceacfe092a54cfdff8758ddab4c",
-        input={
-            "audio": audio_file,
-            "model": "large-v3",
-            "language": "ru",
-            "task": "transcribe",
-            "temperature": 0
-        }
-    )
+                "openai/whisper:34a6b005f74bb8a172a129b03bebef1325dacceacfe092a54cfdff8758ddab4c",
+                input={
+                    "audio": audio_file,
+                    "model": "large-v3",
+                    "language": "ru",
+                    "task": "transcribe",
+                    "temperature": 0
+                }
+            )
+        
         # 3. Извлекаем текст
         if isinstance(output, dict):
             transcribed_text = output.get("text", "")
@@ -99,14 +99,18 @@ async def handle_voice(message: types.Message):
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
         
-            logger.error(f"Ошибка распознавания: {e}")
-    await processing_msg.edit_text(
+        # Логируем ошибку
+        logger.error(f"Ошибка распознавания: {e}")
+        
+        # Отправляем сообщение пользователю (используем e внутри except)
+        await processing_msg.edit_text(
             f"❌ *Ошибка распознавания:*\n`{str(e)[:150]}`\n\n"
             f"Попробуйте:\n"
             f"• Записать голосовое чётче\n"
             f"• Уменьшить длительность (до 30 секунд)",
             parse_mode="Markdown"
         )
+
 
 # --- Эхо для текстовых сообщений (временная функция) ---
 @dp.message()
