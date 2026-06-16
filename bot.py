@@ -1,3 +1,4 @@
+import replicate
 import os
 import sys
 import logging
