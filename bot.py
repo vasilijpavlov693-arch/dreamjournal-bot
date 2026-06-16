@@ -64,16 +64,15 @@ async def handle_voice(message: types.Message):
         # 2. Отправляем в Replicate (через файловый объект)
         with open(temp_audio_path, "rb") as audio_file:
             output = replicate_client.run(
-                "openai/whisper:4d50797290df275329f394e1482ced229332b8ad3c5b4e1e4d4c7f9d2f8a5c0b",
-                input={
-                    "audio": audio_file,
-                    "model": "large-v3",
-                    "language": "ru",
-                    "task": "transcribe",
-                    "temperature": 0
-                }
-            )
-        
+        "openai/whisper:34a6b005f74bb8a172a129b03bebef1325dacceacfe092a54cfdff8758ddab4c",
+        input={
+            "audio": audio_file,
+            "model": "large-v3",
+            "language": "ru",
+            "task": "transcribe",
+            "temperature": 0
+        }
+    )
         # 3. Извлекаем текст
         if isinstance(output, dict):
             transcribed_text = output.get("text", "")
@@ -100,8 +99,8 @@ async def handle_voice(message: types.Message):
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
         
-        logger.error(f"Ошибка распознавания: {e}")
-        await processing_msg.edit_text(
+            logger.error(f"Ошибка распознавания: {e}")
+    await processing_msg.edit_text(
             f"❌ *Ошибка распознавания:*\n`{str(e)[:150]}`\n\n"
             f"Попробуйте:\n"
             f"• Записать голосовое чётче\n"
