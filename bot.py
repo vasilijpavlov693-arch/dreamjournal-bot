@@ -32,20 +32,16 @@ async def start_command(message: Message):
     user_name = message.from_user.first_name
     await message.answer(
         f"Привет, {user_name}! 🎙️\n\n"
-        "Я твой голосовой дневник снов.\n"
-        "Отправь мне голосовое сообщение, и я расшифрую его.\n\n"
-        "✨ Бот работает!"
+        "Отправь голосовое сообщение, и я расшифрую его через Replicate API."
     )
     logger.info(f"Пользователь {message.from_user.id} запустил бота")
 
-# --- Эхо для текстовых сообщений (временная функция) ---
-@dp.message()
-async def echo_message(message: Message):
-    if message.text:
-        await message.answer(f"Ты написал: {message.text}")
-        logger.info(f"Получен текст от {message.from_user.id}: {message.text}")
+# --- Обработчик голосовых сообщений (временный) ---
+@dp.message(lambda message: message.voice)
+async def handle_voice(message: types.Message):
+    await message.answer("🎤 Голосовое получено! Обработка временно отключена для теста.")
 
-# --- Минимальный веб-сервер для Render ---
+# --- Минимальный веб-сервер для Render (ОБЯЗАТЕЛЬНО) ---
 app = FastAPI()
 
 @app.get("/")
@@ -57,8 +53,9 @@ async def health_check():
     return {"status": "healthy"}
 
 def run_web_server():
-    """Запускает веб-сервер в отдельном потоке"""
-    port = int(os.getenv("PORT", 10000))  # Render задаёт порт через переменную PORT
+    """Запускает веб-сервер на порту 10000 (или PORT из переменных)"""
+    port = int(os.getenv("PORT", 10000))
+    logger.info(f"🌐 Запуск веб-сервера на порту {port}")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 # --- Запуск веб-сервера в фоновом потоке ---
