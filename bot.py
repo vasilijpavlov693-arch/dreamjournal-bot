@@ -124,7 +124,7 @@ async def generate_image(prompt: str) -> BytesIO | None:
 
     try:
         # 1. Формируем запрос
-        API_URL = "https://huggingface.co/api/inference-proxy/models/black-forest-labs/FLUX.1-dev"
+        API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-3.5-large"
         headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
         
         # Используем короткий промпт для ускорения
@@ -142,6 +142,7 @@ async def generate_image(prompt: str) -> BytesIO | None:
                     image_data = await response.read()
                     logger.info(f"✅ Картинка получена, размер: {len(image_data)} байт")
                     return BytesIO(image_data)
+                    logger.info(f"✅ Картинка получена, размер: {len(image_data)} байт")
                 else:
                     error_text = await response.text()
                     logger.error(f"❌ HF API Error {response.status}: {error_text[:200]}")
