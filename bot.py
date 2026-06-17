@@ -9,6 +9,51 @@ from aiogram.types import Message
 from fastapi import FastAPI
 import uvicorn
 from groq import Groq
+from supabase import create_client, Client
+
+# --- Инициализация Supabase ---
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
+
+async def save_dream(user_id: int, raw_text: str, polished_text: str):
+    """Сохраняет сон в базу данных"""
+    try:
+        # Сначала найдем telegram_id пользователя
+        user_response = supabase.table("users").select("id").eq("telegram_id", user_id).execute()
+        if user_response.data:
+            db_user_id = user_response.data[0]['id']
+            
+            # Сохраняем сон
+            supabase.table("dreams").insert({
+                "user_id": db_user_id,
+                "raw_text": raw_text,
+                "polished_text": polished_text
+            }).execute()
+            print(f"✅ Сон пользователя {user_id} сохранен!")
+        else:
+            print(f"⚠️ Пользователь {user_id} не найден в базе")
+    except Exception as e:
+        print(f"❌ Ошибка сохранения сна: {e}")
+
+# --- Функция для регистрации пользователя ---
+async def register_user(telegram_id: int, username: str = None):
+    """Добавляет нового пользователя в таблицу users, если его там нет."""
+    try:
+        # Проверяем, есть ли уже такой пользователь
+        response = supabase.table("users").select("id").eq("telegram_id", telegram_id).execute()
+        
+        if not response.data:  # Если пользователь не найден
+            # Добавляем нового
+            supabase.table("users").insert({
+                "telegram_id": telegram_id,
+                "username": username
+            }).execute()
+            print(f"✅ Новый пользователь {telegram_id} добавлен в базу!")
+        else:
+            print(f"ℹ️ Пользователь {telegram_id} уже существует")
+    except Exception as e:
+        print(f"❌ Ошибка базы данных: {e}")
 
 # --- Настройка логирования ---
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -44,7 +89,7 @@ async def start_command(message: Message):
         "и я не только расшифрую его, но и превращу в красивую историю."
     )
     logger.info(f"Пользователь {message.from_user.id} запустил бота")
-
+    await register_user(message.from_user.id, message.from_user.username)
 
 # --- Обработчик голосовых сообщений ---
 @dp.message(lambda message: message.voice)
@@ -109,6 +154,13 @@ async def handle_voice(message: types.Message):
 
         if not polished_dream:
             polished_dream = raw_text  # Если Groq не ответил, отдаём сырой текст
+        
+        # Сохраняем сон в базу
+        await save_dream(
+            user_id=message.from_user.id,
+            raw_text=raw_text,
+            polished_text=polished_dream
+            )
         # 5. Отправляем результат
         await processing_msg.delete()
 
