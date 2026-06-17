@@ -119,25 +119,43 @@ async def set_user_subscription(telegram_id: int, status: str) -> bool:
 async def generate_image(prompt: str) -> BytesIO | None:
     """Генерирует изображение по промпту через Hugging Face."""
     if not HUGGINGFACE_TOKEN:
+        logger.warning("⚠️ Попытка генерации без токена Hugging Face")
         return None
+
     try:
+        # 1. Формируем запрос
         API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev"
         headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
-        enhanced_prompt = f"Dreamy surreal atmosphere, soft watercolor style, mystical and ethereal. {prompt[:200]}"
         
+        # Используем короткий промпт для ускорения
+        enhanced_prompt = f"Dreamy surreal atmosphere, soft watercolor style, mystical and ethereal. {prompt[:150]}"
+        payload = {"inputs": enhanced_prompt}
+        
+        logger.info(f"🎨 Отправка запроса в HF: {enhanced_prompt[:50]}...")
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(API_URL, headers=headers, json={"inputs": enhanced_prompt}) as response:
+            async with session.post(API_URL, headers=headers, json=payload, timeout=60) as response:
+                logger.info(f"📡 Статус ответа HF: {response.status}")
+                
+                # 2. Читаем ответ в зависимости от статуса
                 if response.status == 200:
                     image_data = await response.read()
+                    logger.info(f"✅ Картинка получена, размер: {len(image_data)} байт")
                     return BytesIO(image_data)
                 else:
                     error_text = await response.text()
-                    logger.error(f"HF API Error: {response.status} - {error_text}")
+                    logger.error(f"❌ HF API Error {response.status}: {error_text[:200]}")
                     return None
-    except Exception as e:
-        logger.error(f"Ошибка генерации картинки: {e}")
+                    
+    except aiohttp.ClientError as e:
+        logger.error(f"🌐 Ошибка сети при генерации: {e}")
         return None
-
+    except asyncio.TimeoutError:
+        logger.error("⏰ Таймаут при генерации картинки (>60 секунд)")
+        return None
+    except Exception as e:
+        logger.error(f"💥 Непредвиденная ошибка генерации: {e}")
+        return None
 # ========== КОМАНДЫ БОТА ==========
 
 @dp.message(Command("start"))
