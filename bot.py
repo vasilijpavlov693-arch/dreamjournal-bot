@@ -91,7 +91,7 @@ async def start_command(message: Message):
     logger.info(f"Пользователь {message.from_user.id} запустил бота")
     await register_user(message.from_user.id, message.from_user.username)
 
-# --- Обработчик голосовых сообщений ---
+# ========== МОДИФИЦИРОВАННЫЙ ОБРАБОТЧИК ГОЛОСОВЫХ ==========
 @dp.message(lambda message: message.voice)
 async def handle_voice(message: types.Message):
     await bot.send_chat_action(message.chat.id, action="typing")
@@ -100,14 +100,18 @@ async def handle_voice(message: types.Message):
     temp_audio_path = None
 
     try:
-        # 1. Скачиваем голосовое
+        # 1. Проверяем подписку ДО обработки
+        user_status = await get_user_subscription(message.from_user.id)
+        is_premium = user_status == "premium"
+
+        # 2. Скачиваем голосовое
         file = await bot.get_file(message.voice.file_id)
         temp_audio_path = f"voice_{message.from_user.id}_{message.message_id}.ogg"
         await bot.download_file(file.file_path, temp_audio_path)
 
         await processing_msg.edit_text("📤 Расшифровываю через Groq...")
 
-        # 2. Распознавание речи через Groq Whisper
+        # 3. Распознавание речи (общее для всех)
         with open(temp_audio_path, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
                 file=audio_file,
@@ -121,16 +125,23 @@ async def handle_voice(message: types.Message):
         if not raw_text or raw_text.strip() == "":
             raise Exception("Не удалось распознать речь. Попробуй говорить чётче.")
 
-        # 3. Удаляем временный файл
+        # 4. Удаляем временный файл
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
 
-        await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Gemini...")
+        # 5. БАЗОВАЯ ФУНКЦИЯ (для всех): просто расшифровка
+        if not is_premium:
+            await processing_msg.delete()
+            await message.answer(
+                f"📝 *Расшифровка:*\n\n_{raw_text}_\n\n"
+                f"💡 Хочешь красивую обработку и анализ? Используй команду /subscribe (временно бесплатно!)",
+                parse_mode="Markdown"
+            )
+            return
 
-        # 4. Обработка текста через Groq
-        await processing_msg.edit_text("✨ Превращаю сон в красивую историю через Groq...")
+        # 6. ПРЕМИУМ-ФУНКЦИЯ: литературная обработка
+        await processing_msg.edit_text("✨ Превращаю сон в красивую историю...")
 
-        # Формируем запрос к Groq LLM
         prompt = (
             "Ты — писатель и поэт. Преврати следующий сырой пересказ сна в красивый, "
             "поэтичный и образный рассказ на русском языке. Добавь атмосферу, метафоры "
@@ -138,9 +149,8 @@ async def handle_voice(message: types.Message):
             f"Сон пользователя:\n{raw_text}"
         )
 
-        # Отправляем запрос в Groq (используем самую лучшую и бесплатную модель)
         llm_response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # Отличная модель для русского языка
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "Ты — писатель и поэт, пишешь на русском языке."},
                 {"role": "user", "content": prompt}
@@ -149,33 +159,24 @@ async def handle_voice(message: types.Message):
             max_tokens=1024
         )
 
-        # Извлекаем обработанный текст
         polished_dream = llm_response.choices[0].message.content
-
         if not polished_dream:
-            polished_dream = raw_text  # Если Groq не ответил, отдаём сырой текст
-        
-        # Сохраняем сон в базу
-        await save_dream(
-            user_id=message.from_user.id,
-            raw_text=raw_text,
-            polished_text=polished_dream
-            )
-        # 5. Отправляем результат
-        await processing_msg.delete()
+            polished_dream = raw_text
 
-        response_text = (
+        # Сохраняем сон в базу (только для премиум-пользователей)
+        await save_dream(message.from_user.id, raw_text, polished_dream)
+
+        await processing_msg.delete()
+        await message.answer(
             f"🌙 *Твой сон в красивом пересказе:*\n\n"
             f"{polished_dream}\n\n"
             f"---\n"
             f"📝 *Исходная расшифровка:*\n"
-            f"_{raw_text}_"
+            f"_{raw_text}_",
+            parse_mode="Markdown"
         )
 
-        await message.answer(response_text, parse_mode="Markdown")
-
     except Exception as e:
-        # Очистка
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
 
@@ -221,6 +222,57 @@ logger.info("✅ Веб-сервер запущен в фоновом поток
 async def main():
     logger.info("🔄 Запуск режима long polling...")
     await dp.start_polling(bot)
+
+# ========== ВРЕМЕННЫЕ КОМАНДЫ ДЛЯ ТЕСТА (УДАЛИТЬ ПОТОМ) ==========
+
+@dp.message(Command("subscribe"))
+async def cmd_subscribe(message: Message):
+    """ВРЕМЕННО: Выдаёт премиум-подписку пользователю"""
+    user_id = message.from_user.id
+    if await set_user_subscription(user_id, "premium"):
+        await message.answer("✅ **Подписка PREMIUM активирована!**\n\nТеперь вам доступны все функции бота.", parse_mode="Markdown")
+    else:
+        await message.answer("❌ Ошибка активации подписки. Попробуйте позже.")
+
+@dp.message(Command("unsubscribe"))
+async def cmd_unsubscribe(message: Message):
+    """ВРЕМЕННО: Отменяет премиум-подписку пользователя"""
+    user_id = message.from_user.id
+    if await set_user_subscription(user_id, "free"):
+        await message.answer("✅ **Подписка PREMIUM отключена.**\n\nВы вернулись на бесплатный тариф.", parse_mode="Markdown")
+    else:
+        await message.answer("❌ Ошибка отключения подписки. Попробуйте позже.")
+
+@dp.message(Command("status"))
+async def cmd_status(message: Message):
+    """Показывает текущий статус подписки"""
+    user_id = message.from_user.id
+    status = await get_user_subscription(user_id)
+    status_text = "🔓 **Бесплатный тариф**" if status == "free" else "🔒 **PREMIUM**"
+    await message.answer(f"Ваш статус: {status_text}", parse_mode="Markdown")
+
+
+# ========== СИСТЕМА ПОДПИСКИ ==========
+
+async def get_user_subscription(telegram_id: int) -> str:
+    """Возвращает статус подписки пользователя ('free' или 'premium')"""
+    try:
+        response = supabase.table("users").select("subscription_status").eq("telegram_id", telegram_id).execute()
+        if response.data:
+            return response.data[0].get("subscription_status", "free")
+        return "free"
+    except Exception as e:
+        print(f"❌ Ошибка получения статуса подписки: {e}")
+        return "free"
+
+async def set_user_subscription(telegram_id: int, status: str) -> bool:
+    """Устанавливает статус подписки ('free' или 'premium')"""
+    try:
+        supabase.table("users").update({"subscription_status": status}).eq("telegram_id", telegram_id).execute()
+        return True
+    except Exception as e:
+        print(f"❌ Ошибка обновления подписки: {e}")
+        return False
 
 if __name__ == "__main__":
     try:
