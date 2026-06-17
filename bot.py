@@ -188,12 +188,42 @@ async def handle_voice(message: types.Message):
         )
 
 
+# ========== ВРЕМЕННЫЕ КОМАНДЫ ДЛЯ ТЕСТА (УДАЛИТЬ ПОТОМ) ==========
+
+@dp.message(Command("subscribe"))
+async def cmd_subscribe(message: Message):
+    """ВРЕМЕННО: Выдаёт премиум-подписку пользователю"""
+    user_id = message.from_user.id
+    if await set_user_subscription(user_id, "premium"):
+        await message.answer("✅ **Подписка PREMIUM активирована!**\n\nТеперь вам доступны все функции бота.", parse_mode="Markdown")
+    else:
+        await message.answer("❌ Ошибка активации подписки. Попробуйте позже.")
+
+@dp.message(Command("unsubscribe"))
+async def cmd_unsubscribe(message: Message):
+    """ВРЕМЕННО: Отменяет премиум-подписку пользователя"""
+    user_id = message.from_user.id
+    if await set_user_subscription(user_id, "free"):
+        await message.answer("✅ **Подписка PREMIUM отключена.**\n\nВы вернулись на бесплатный тариф.", parse_mode="Markdown")
+    else:
+        await message.answer("❌ Ошибка отключения подписки. Попробуйте позже.")
+
+@dp.message(Command("status"))
+async def cmd_status(message: Message):
+    """Показывает текущий статус подписки"""
+    user_id = message.from_user.id
+    status = await get_user_subscription(user_id)
+    status_text = "🔓 **Бесплатный тариф**" if status == "free" else "🔒 **PREMIUM**"
+    await message.answer(f"Ваш статус: {status_text}", parse_mode="Markdown")
+
+
+
 # --- Эхо для текстовых сообщений ---
 @dp.message()
 async def echo_message(message: Message):
     if message.text:
         await message.answer(
-            "📝 Ты прислал текст. Чтобы записать сон, отправь, пожалуйста, **голосовое сообщение**."
+            "📝 Ты прислал текст. Чтобы записать сон, отправь, пожалуйста, *голосовое сообщение*."
         )
 
 
@@ -222,34 +252,6 @@ logger.info("✅ Веб-сервер запущен в фоновом поток
 async def main():
     logger.info("🔄 Запуск режима long polling...")
     await dp.start_polling(bot)
-
-# ========== ВРЕМЕННЫЕ КОМАНДЫ ДЛЯ ТЕСТА (УДАЛИТЬ ПОТОМ) ==========
-
-@dp.message(Command("subscribe"))
-async def cmd_subscribe(message: Message):
-    """ВРЕМЕННО: Выдаёт премиум-подписку пользователю"""
-    user_id = message.from_user.id
-    if await set_user_subscription(user_id, "premium"):
-        await message.answer("✅ **Подписка PREMIUM активирована!**\n\nТеперь вам доступны все функции бота.", parse_mode="Markdown")
-    else:
-        await message.answer("❌ Ошибка активации подписки. Попробуйте позже.")
-
-@dp.message(Command("unsubscribe"))
-async def cmd_unsubscribe(message: Message):
-    """ВРЕМЕННО: Отменяет премиум-подписку пользователя"""
-    user_id = message.from_user.id
-    if await set_user_subscription(user_id, "free"):
-        await message.answer("✅ **Подписка PREMIUM отключена.**\n\nВы вернулись на бесплатный тариф.", parse_mode="Markdown")
-    else:
-        await message.answer("❌ Ошибка отключения подписки. Попробуйте позже.")
-
-@dp.message(Command("status"))
-async def cmd_status(message: Message):
-    """Показывает текущий статус подписки"""
-    user_id = message.from_user.id
-    status = await get_user_subscription(user_id)
-    status_text = "🔓 **Бесплатный тариф**" if status == "free" else "🔒 **PREMIUM**"
-    await message.answer(f"Ваш статус: {status_text}", parse_mode="Markdown")
 
 
 # ========== СИСТЕМА ПОДПИСКИ ==========
