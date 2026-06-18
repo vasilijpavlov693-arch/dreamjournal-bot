@@ -134,8 +134,8 @@ async def generate_image(prompt: str) -> BytesIO | None:
         result = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: client.text_to_image(
-            enhanced_prompt,
-            "black-forest-labs/FLUX.1-schnell")
+            prompt=enhanced_prompt,
+            model="black-forest-labs/FLUX.1-schnell")
         )
 
         # Проверяем тип результата и преобразуем в байты
