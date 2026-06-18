@@ -135,9 +135,9 @@ async def generate_image(prompt: str) -> BytesIO | None:
         # В новой версии библиотеки метод text_to_image принимает 2 позиционных аргумента: prompt и model
         image_bytes = await asyncio.get_event_loop().run_in_executor(
             None,
-            client.text_to_image,
-            enhanced_prompt,  # позиционный аргумент
-            "black-forest-labs/FLUX.1-schnell"  # второй позиционный аргумент
+             lambda: client.text_to_image(
+                prompt=enhanced_prompt,
+                model="black-forest-labs/FLUX.1-schnell")
         )
 
         if image_bytes:
