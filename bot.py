@@ -327,26 +327,22 @@ async def handle_voice(message: types.Message):
     
     except Exception as e:
     # Обработка ошибок
-        if temp_audio_path and os.path.exists(temp_audio_path):
-            os.remove(temp_audio_path)
+    if temp_audio_path and os.path.exists(temp_audio_path):
+        os.remove(temp_audio_path)
     
     # Используем e только внутри except
-    error_message = str(e) if 'e' in locals() else "Неизвестная ошибка"
+    error_message = str(e) if e else "Неизвестная ошибка"
     logger.error(f"Ошибка обработки: {error_message}")
     
-    await processing_msg.edit_text(
-        f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
-        f"Попробуй записать голосовое ещё раз.",
-        parse_mode="Markdown"
-    )
-# ========== ОБРАБОТЧИК ТЕКСТА (должен быть ПОСЛЕ всех команд) ==========
-
-@dp.message(lambda message: message.text and not message.text.startswith('/'))
-async def echo_message(message: Message):
-    await message.answer(
-        "📝 Ты прислал текст. Чтобы записать сон, отправь, пожалуйста, **голосовое сообщение**."
-    )
-
+    try:
+        await processing_msg.edit_text(
+            f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
+            f"Попробуй записать голосовое ещё раз.",
+            parse_mode="Markdown"
+        )
+    except:
+        # Если даже сообщение об ошибке не отправилось — просто логируем
+        logger.error("Не удалось отправить сообщение об ошибке пользователю")
 # ========== ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
 
 app = FastAPI()
