@@ -117,44 +117,46 @@ async def set_user_subscription(telegram_id: int, status: str) -> bool:
 # ========== ГЕНЕРАЦИЯ КАРТИНОК ==========
 
 async def generate_image(prompt: str) -> BytesIO | None:
-    """Генерирует изображение по промпту через Hugging Face."""
+    """Генерирует изображение через Hugging Face с использованием прокси."""
     if not HUGGINGFACE_TOKEN:
         logger.warning("⚠️ Попытка генерации без токена Hugging Face")
         return None
 
     try:
-        # 1. Формируем запрос
+        # Используем прокси-адрес вместо прямого
         API_URL = "https://huggingface.co/api/inference-proxy/models/black-forest-labs/FLUX.1-dev"
         headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
         
-        # Используем короткий промпт для ускорения
         enhanced_prompt = f"Dreamy surreal atmosphere, soft watercolor style, mystical and ethereal. {prompt[:150]}"
         payload = {"inputs": enhanced_prompt}
         
-        logger.info(f"🎨 Отправка запроса в HF: {enhanced_prompt[:50]}...")
+        logger.info(f"🎨 Отправка запроса в HF (через прокси): {enhanced_prompt[:50]}...")
 
         async with aiohttp.ClientSession() as session:
             async with session.post(API_URL, headers=headers, json=payload, timeout=60) as response:
                 logger.info(f"📡 Статус ответа HF: {response.status}")
                 
-                # 2. Читаем ответ в зависимости от статуса
                 if response.status == 200:
                     image_data = await response.read()
-                    logger.info(f"✅ Картинка получена, размер: {len(image_data)} байт")
-                    return BytesIO(image_data)
+                    if len(image_data) > 1024:  # Проверяем, что это не текст ошибки
+                        logger.info(f"✅ Картинка получена, размер: {len(image_data)} байт")
+                        return BytesIO(image_data)
+                    else:
+                        logger.warning("⚠️ Получен пустой ответ или очень маленький файл")
+                        return None
                 else:
                     error_text = await response.text()
                     logger.error(f"❌ HF API Error {response.status}: {error_text[:200]}")
                     return None
                     
     except aiohttp.ClientError as e:
-        logger.error(f"🌐 Ошибка сети при генерации: {e}")
+        logger.error(f"🌐 Ошибка сети: {e}")
         return None
     except asyncio.TimeoutError:
-        logger.error("⏰ Таймаут при генерации картинки (>60 секунд)")
+        logger.error("⏰ Таймаут при генерации")
         return None
     except Exception as e:
-        logger.error(f"💥 Непредвиденная ошибка генерации: {e}")
+        logger.error(f"💥 Ошибка: {e}")
         return None
 # ========== КОМАНДЫ БОТА ==========
 
