@@ -125,22 +125,23 @@ async def generate_image(prompt: str) -> BytesIO | None:
         return None
 
     try:
-        # 1. Инициализируем клиент и используем модель FLUX.1-schnell
+        # 1. Инициализируем клиент
         client = InferenceClient(token=HF_TOKEN)
         enhanced_prompt = f"Dreamy surreal atmosphere, soft watercolor style, mystical and ethereal. {prompt[:150]}"
         
-        logger.info(f"🎨 Отправка запроса в HF Serverless API...")
+        logger.info("🎨 Отправка запроса в HF Serverless API...")
 
-        # 2. Выполняем синхронный вызов в асинхронном контексте
+        # 2. Правильный вызов: передаём только промпт и модель через параметры
+        # В новой версии библиотеки модель передаётся в параметре model
         image_bytes = await asyncio.get_event_loop().run_in_executor(
             None,
             client.text_to_image,
-            enhanced_prompt,
-            "black-forest-labs/FLUX.1-schnell" # Явно указываем модель
+            prompt=enhanced_prompt,  # Аргумент по имени
+            model="black-forest-labs/FLUX.1-schnell"  # Модель передаётся в параметре model
         )
 
         if image_bytes:
-            logger.info(f"✅ Картинка получена")
+            logger.info("✅ Картинка получена")
             return BytesIO(image_bytes)
         else:
             logger.error("❌ API не вернул данные")
