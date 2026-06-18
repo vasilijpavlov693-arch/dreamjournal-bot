@@ -131,13 +131,13 @@ async def generate_image(prompt: str) -> BytesIO | None:
         
         logger.info("🎨 Отправка запроса в HF Serverless API...")
 
-        # 2. Правильный вызов: передаём только промпт и модель через параметры
-        # В новой версии библиотеки модель передаётся в параметре model
+        # 2. Правильный вызов: передаём только промпт, модель указываем явно
+        # В новой версии библиотеки метод text_to_image принимает 2 позиционных аргумента: prompt и model
         image_bytes = await asyncio.get_event_loop().run_in_executor(
             None,
             client.text_to_image,
-            prompt=enhanced_prompt,  # Аргумент по имени
-            model="black-forest-labs/FLUX.1-schnell"  # Модель передаётся в параметре model
+            enhanced_prompt,  # позиционный аргумент
+            "black-forest-labs/FLUX.1-schnell"  # второй позиционный аргумент
         )
 
         if image_bytes:
