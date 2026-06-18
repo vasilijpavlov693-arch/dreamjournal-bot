@@ -282,16 +282,21 @@ async def handle_voice(message: types.Message):
         # 7. Сохраняем сон в базу
         await save_dream(message.from_user.id, raw_text, polished_dream)
 
-        # 8. Генерация и отправка картинки
+        # 8. Отправка текста и картинки
         await processing_msg.edit_text("🎨 Генерирую иллюстрацию к твоему сну...")
 
-        # Генерируем изображение
+        # Генерируем картинку
         image_bytes = await generate_image(f"A dream about: {raw_text[:200]}")
 
-        # Отправляем результат
         try:
+            # Отправляем текст сна
+            await message.answer(
+                f"🌙 *Твой сон в красивом пересказе:*\n\n{polished_dream}",
+                parse_mode="Markdown"
+            )
+            
+            # Отправляем картинку отдельно (без подписи)
             if image_bytes:
-                # Убеждаемся, что указатель в начале
                 if isinstance(image_bytes, BytesIO):
                     image_bytes.seek(0)
                     photo_file = BufferedInputFile(
@@ -304,47 +309,35 @@ async def handle_voice(message: types.Message):
                         filename="dream.png"
                     )
                 else:
-                    logger.error(f"Неизвестный тип image_bytes: {type(image_bytes)}")
                     photo_file = None
                 
                 if photo_file:
                     await message.answer_photo(
                         photo=photo_file,
-                        caption=f"🌙 *Твой сон в картинке:*\n\n{polished_dream}",
-                        parse_mode="Markdown"
+                        caption=None
                     )
-                    await processing_msg.delete()
                 else:
-                    await processing_msg.edit_text("⚠️ Не удалось сгенерировать картинку, но твой сон готов:")
-                    await message.answer(
-                        f"🌙 *Твой сон в красивом пересказе:*\n\n{polished_dream}",
-                        parse_mode="Markdown"
-                    )
+                    await message.answer("⚠️ Не удалось сгенерировать картинку для этого сна.")
             else:
-                await processing_msg.edit_text("⚠️ Не удалось сгенерировать картинку, но твой сон готов:")
-                await message.answer(
-                    f"🌙 *Твой сон в красивом пересказе:*\n\n{polished_dream}",
-                    parse_mode="Markdown"
-                )
+                await message.answer("⚠️ Не удалось сгенерировать картинку для этого сна.")
+                
         except Exception as e:
             logger.error(f"Ошибка отправки картинки: {e}")
-            await processing_msg.edit_text("⚠️ Произошла ошибка при отправке картинки, но твой сон готов:")
-            await message.answer(
-                f"🌙 *Твой сон в красивом пересказе:*\n\n{polished_dream}",
-                parse_mode="Markdown"
-            )
-
+            await message.answer("⚠️ Произошла ошибка при отправке картинки, но твой сон готов.")
+    
     except Exception as e:
-        # Основная обработка ошибок
+    # ОБРАБОТКА ОШИБОК (это то, чего не хватало!)
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
-
-        logger.error(f"Ошибка обработки: {e}")
-        await processing_msg.edit_text(
-            f"❌ *Что-то пошло не так:*\n`{str(e)[:150]}`\n\n"
-            f"Попробуй записать голосовое ещё раз.",
-            parse_mode="Markdown"
-        )
+    
+    logger.error(f"Ошибка обработки: {e}")
+    await processing_msg.edit_text(
+        f"❌ *Что-то пошло не так:*\n`{str(e)[:150]}`\n\n"
+        f"Попробуй записать голосовое ещё раз.",
+        parse_mode="Markdown"
+    )
+        # Удаляем сообщение о генерации
+    await processing_msg.delete()
 
 # ========== ОБРАБОТЧИК ТЕКСТА (должен быть ПОСЛЕ всех команд) ==========
 
