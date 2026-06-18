@@ -12,6 +12,7 @@ from fastapi import FastAPI
 import uvicorn
 from groq import Groq
 from supabase import create_client, Client
+from huggingface_hub import InferenceClient
 
 # --- Настройка логирования ---
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -117,46 +118,36 @@ async def set_user_subscription(telegram_id: int, status: str) -> bool:
 # ========== ГЕНЕРАЦИЯ КАРТИНОК ==========
 
 async def generate_image(prompt: str) -> BytesIO | None:
-    """Генерирует изображение через Hugging Face с использованием прокси."""
-    if not HUGGINGFACE_TOKEN:
-        logger.warning("⚠️ Попытка генерации без токена Hugging Face")
+    """Генерирует изображение через бесплатный Inference API Hugging Face."""
+    HF_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
+    if not HF_TOKEN:
+        logger.warning("⚠️ HUGGINGFACE_TOKEN не найден.")
         return None
 
     try:
-        # Используем прокси-адрес вместо прямого
-        API_URL = "https://huggingface.co/api/inference-proxy/models/black-forest-labs/FLUX.1-dev"
-        headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
-        
+        # 1. Инициализируем клиент и используем модель FLUX.1-schnell
+        client = InferenceClient(token=HF_TOKEN)
         enhanced_prompt = f"Dreamy surreal atmosphere, soft watercolor style, mystical and ethereal. {prompt[:150]}"
-        payload = {"inputs": enhanced_prompt}
         
-        logger.info(f"🎨 Отправка запроса в HF (через прокси): {enhanced_prompt[:50]}...")
+        logger.info(f"🎨 Отправка запроса в HF Serverless API...")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(API_URL, headers=headers, json=payload, timeout=60) as response:
-                logger.info(f"📡 Статус ответа HF: {response.status}")
-                
-                if response.status == 200:
-                    image_data = await response.read()
-                    if len(image_data) > 1024:  # Проверяем, что это не текст ошибки
-                        logger.info(f"✅ Картинка получена, размер: {len(image_data)} байт")
-                        return BytesIO(image_data)
-                    else:
-                        logger.warning("⚠️ Получен пустой ответ или очень маленький файл")
-                        return None
-                else:
-                    error_text = await response.text()
-                    logger.error(f"❌ HF API Error {response.status}: {error_text[:200]}")
-                    return None
-                    
-    except aiohttp.ClientError as e:
-        logger.error(f"🌐 Ошибка сети: {e}")
-        return None
-    except asyncio.TimeoutError:
-        logger.error("⏰ Таймаут при генерации")
-        return None
+        # 2. Выполняем синхронный вызов в асинхронном контексте
+        image_bytes = await asyncio.get_event_loop().run_in_executor(
+            None,
+            client.text_to_image,
+            enhanced_prompt,
+            "black-forest-labs/FLUX.1-schnell" # Явно указываем модель
+        )
+
+        if image_bytes:
+            logger.info(f"✅ Картинка получена")
+            return BytesIO(image_bytes)
+        else:
+            logger.error("❌ API не вернул данные")
+            return None
+
     except Exception as e:
-        logger.error(f"💥 Ошибка: {e}")
+        logger.error(f"❌ Ошибка генерации через HF API: {e}")
         return None
 # ========== КОМАНДЫ БОТА ==========
 
