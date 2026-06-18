@@ -334,15 +334,15 @@ async def handle_voice(message: types.Message):
     error_message = str(e) if e else "Неизвестная ошибка"
     logger.error(f"Ошибка обработки: {error_message}")
     
-    try:
-        await processing_msg.edit_text(
+       try:
+          await processing_msg.edit_text(
             f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
             f"Попробуй записать голосовое ещё раз.",
             parse_mode="Markdown"
         )
-    except:
+       except:
         # Если даже сообщение об ошибке не отправилось — просто логируем
-        logger.error("Не удалось отправить сообщение об ошибке пользователю")
+          logger.error("Не удалось отправить сообщение об ошибке пользователю")
 # ========== ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
 
 app = FastAPI()
