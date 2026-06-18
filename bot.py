@@ -288,61 +288,63 @@ async def handle_voice(message: types.Message):
         # Генерируем картинку
         image_bytes = await generate_image(f"A dream about: {raw_text[:200]}")
 
-        try:
-            # Отправляем текст сна
-            await message.answer(
-                f"🌙 *Твой сон в красивом пересказе:*\n\n{polished_dream}",
-                parse_mode="Markdown"
-            )
-            
-            # Отправляем картинку отдельно (без подписи)
-            if image_bytes:
-                if isinstance(image_bytes, BytesIO):
-                    image_bytes.seek(0)
-                    photo_file = BufferedInputFile(
-                        image_bytes.getvalue(),
-                        filename="dream.png"
-                    )
-                elif isinstance(image_bytes, bytes):
-                    photo_file = BufferedInputFile(
-                        image_bytes,
-                        filename="dream.png"
-                    )
-                else:
-                    photo_file = None
-                
-                if photo_file:
-                    await message.answer_photo(
-                        photo=photo_file,
-                        caption=None
-                    )
-                else:
-                    await message.answer("⚠️ Не удалось сгенерировать картинку для этого сна.")
-            else:
-                await message.answer("⚠️ Не удалось сгенерировать картинку для этого сна.")
-                
-        except Exception as e:
-            logger.error(f"Ошибка отправки картинки: {e}")
-            await message.answer("⚠️ Произошла ошибка при отправке картинки, но твой сон готов.")
-    
-    except Exception as e:
-    # Обработка ошибок
-    if temp_audio_path and os.path.exists(temp_audio_path):
-        os.remove(temp_audio_path)
-    
-    # Используем e только внутри except
-    error_message = str(e) if e else "Неизвестная ошибка"
-    logger.error(f"Ошибка обработки: {error_message}")
-    
-       try:
-          await processing_msg.edit_text(
-            f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
-            f"Попробуй записать голосовое ещё раз.",
+        # Отправляем текст сна (даже если картинка не получится)
+        await message.answer(
+            f"🌙 *Твой сон в красивом пересказе:*\n\n{polished_dream}",
             parse_mode="Markdown"
         )
-       except:
-        # Если даже сообщение об ошибке не отправилось — просто логируем
-          logger.error("Не удалось отправить сообщение об ошибке пользователю")
+
+        # Отправляем картинку отдельно (без подписи)
+        if image_bytes:
+            if isinstance(image_bytes, BytesIO):
+                image_bytes.seek(0)
+                photo_file = BufferedInputFile(
+                    image_bytes.getvalue(),
+                    filename="dream.png"
+                )
+            elif isinstance(image_bytes, bytes):
+                photo_file = BufferedInputFile(
+                    image_bytes,
+                    filename="dream.png"
+                )
+            else:
+                photo_file = None
+
+            if photo_file:
+                await message.answer_photo(
+                    photo=photo_file,
+                    caption=None
+                )
+            else:
+                await message.answer("⚠️ Не удалось сгенерировать картинку для этого сна.")
+        else:
+            await message.answer("⚠️ Не удалось сгенерировать картинку для этого сна.")
+
+        # Удаляем сообщение о генерации
+        await processing_msg.delete()
+
+    except Exception as e:
+        # Обработка ошибок (только если что-то пошло не так)
+        if temp_audio_path and os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+
+        error_message = str(e) if e else "Неизвестная ошибка"
+        logger.error(f"Ошибка обработки: {error_message}")
+
+        # Проверяем, существует ли ещё processing_msg
+        try:
+            await processing_msg.edit_text(
+                f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
+                f"Попробуй записать голосовое ещё раз.",
+                parse_mode="Markdown"
+            )
+        except:
+            # Если сообщение уже удалено, отправляем новое
+            await message.answer(
+                f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
+                f"Попробуй записать голосовое ещё раз.",
+                parse_mode="Markdown"
+            )
 # ========== ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
 
 app = FastAPI()
