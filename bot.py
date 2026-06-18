@@ -125,24 +125,39 @@ async def generate_image(prompt: str) -> BytesIO | None:
         return None
 
     try:
-        # 1. Инициализируем клиент
         client = InferenceClient(token=HF_TOKEN)
         enhanced_prompt = f"Dreamy surreal atmosphere, soft watercolor style, mystical and ethereal. {prompt[:150]}"
         
         logger.info("🎨 Отправка запроса в HF Serverless API...")
 
-        # 2. Правильный вызов: передаём только промпт, модель указываем явно
-        # В новой версии библиотеки метод text_to_image принимает 2 позиционных аргумента: prompt и model
-        image_bytes = await asyncio.get_event_loop().run_in_executor(
+        # Выполняем синхронный вызов в асинхронном контексте
+        result = await asyncio.get_event_loop().run_in_executor(
             None,
-             lambda: client.text_to_image(
-                prompt=enhanced_prompt,
-                model="black-forest-labs/FLUX.1-schnell")
+            client.text_to_image,
+            enhanced_prompt,
+            "black-forest-labs/FLUX.1-schnell"
         )
 
-        if image_bytes:
-            logger.info("✅ Картинка получена")
-            return BytesIO(image_bytes)
+        # Проверяем тип результата и преобразуем в байты
+        if result:
+            # Если это объект Pillow Image, преобразуем его в байты
+            if hasattr(result, 'save'):
+                # Создаем BytesIO и сохраняем изображение в него
+                img_bytes = BytesIO()
+                result.save(img_bytes, format='PNG')
+                img_bytes.seek(0)  # Возвращаемся в начало
+                logger.info(f"✅ Картинка преобразована в байты")
+                return img_bytes
+            # Если это уже байты или BytesIO
+            elif isinstance(result, bytes):
+                logger.info(f"✅ Картинка получена (байты), размер: {len(result)} байт")
+                return BytesIO(result)
+            elif isinstance(result, BytesIO):
+                logger.info(f"✅ Картинка получена (BytesIO), размер: {len(result.getvalue())} байт")
+                return result
+            else:
+                logger.warning(f"⚠️ Неизвестный тип результата: {type(result)}")
+                return None
         else:
             logger.error("❌ API не вернул данные")
             return None
