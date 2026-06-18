@@ -326,19 +326,19 @@ async def handle_voice(message: types.Message):
             await message.answer("⚠️ Произошла ошибка при отправке картинки, но твой сон готов.")
     
     except Exception as e:
-    # ОБРАБОТКА ОШИБОК (это то, чего не хватало!)
+    # Обработка ошибок
         if temp_audio_path and os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
     
-    logger.error(f"Ошибка обработки: {e}")
+    # Используем e только внутри except
+    error_message = str(e) if 'e' in locals() else "Неизвестная ошибка"
+    logger.error(f"Ошибка обработки: {error_message}")
+    
     await processing_msg.edit_text(
-        f"❌ *Что-то пошло не так:*\n`{str(e)[:150]}`\n\n"
+        f"❌ *Что-то пошло не так:*\n`{error_message[:150]}`\n\n"
         f"Попробуй записать голосовое ещё раз.",
         parse_mode="Markdown"
     )
-        # Удаляем сообщение о генерации
-    await processing_msg.delete()
-
 # ========== ОБРАБОТЧИК ТЕКСТА (должен быть ПОСЛЕ всех команд) ==========
 
 @dp.message(lambda message: message.text and not message.text.startswith('/'))
