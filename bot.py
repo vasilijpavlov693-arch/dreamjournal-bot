@@ -7,7 +7,7 @@ import aiohttp
 from io import BytesIO
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import Message, InputFile
+from aiogram.types import Message, InputFile, BufferedInputFile
 from fastapi import FastAPI
 import uvicorn
 from groq import Groq
@@ -140,19 +140,20 @@ async def generate_image(prompt: str) -> BytesIO | None:
 
         # Проверяем тип результата и преобразуем в байты
         if result:
-            # Если это объект Pillow Image, преобразуем его в байты
+            # Если это объект Pillow Image, преобразуем его в BytesIO
             if hasattr(result, 'save'):
-                # Создаем BytesIO и сохраняем изображение в него
                 img_bytes = BytesIO()
                 result.save(img_bytes, format='PNG')
-                img_bytes.seek(0)  # Возвращаемся в начало
-                logger.info(f"✅ Картинка преобразована в байты")
+                img_bytes.seek(0)
+                logger.info("✅ Картинка преобразована в BytesIO")
                 return img_bytes
-            # Если это уже байты или BytesIO
+            # Если это уже байты
             elif isinstance(result, bytes):
                 logger.info(f"✅ Картинка получена (байты), размер: {len(result)} байт")
                 return BytesIO(result)
+            # Если это уже BytesIO
             elif isinstance(result, BytesIO):
+                result.seek(0)
                 logger.info(f"✅ Картинка получена (BytesIO), размер: {len(result.getvalue())} байт")
                 return result
             else:
